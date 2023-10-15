@@ -1,0 +1,88 @@
+{% load static %}
+{% load dictionary %}
+{% load directions %}
+
+<html>
+    <head>
+        <title>Metra Tracker</title>
+        <style>
+            {% for route in stop_order_by_route.keys %}
+            .route-{{ route.route_id }}::before {
+                color: #{{ route.route_color }};
+                content: "\2588"
+            }
+            {% endfor %}
+
+            .trip-data .arrival-time::before {
+                content: "\2013";
+            }
+
+            .trip-data {
+                margin-top: 0.25em;
+            }
+
+            .route {
+                padding: 0.25em 1em;
+                border-right: 1px solid lightgray;
+            }
+
+            .route:last-child {
+                border-right: none;
+            }
+
+            .route-container {
+                font-size: 200%;
+            }
+
+            .route .trip-data li {
+                white-space: nowrap;
+            }
+
+            .route-container .logo {
+                height: 20%;
+                width: 50%;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="route-container">
+            <img class="logo" src="{% static 'metra/metra.svg' %}" alt="Metra Logo">
+
+            {% for route, stops in stop_order_by_route.items %}
+            <div class="route">
+                <span class="route-{{route.route_id}}">
+                    <span class="short-name">
+                        {{ route.short_name }}
+                    </span>  
+                </span>
+
+                <ul class="trip-data">
+                {% for stop in stops %}
+                    <li>
+                        <span class="stop">
+                            {{ stop.name }}
+                        </span>
+
+                        {% get_by_route_and_stop route stop as stop_times_by_direction %}
+                        <ul>
+                            {% for direction_id, stop_times in stop_times_by_direction.times.items %}
+                            <li>
+                                <span class="direction">
+                                    {{ direction_id|direction }}
+                                </span>
+                                {% for stop_time in stop_times %}
+                                <span class="arrival-time">
+                                    {{ stop_time.arrival_time }}
+                                </span>
+                                {% endfor %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+    </body>
+</html>

@@ -1,0 +1,51 @@
+[
+{
+    "model": "metra.dayoftheweek",
+    "pk": 1,
+    "fields": {
+        "name": "Monday"
+    }
+},
+{
+    "model": "metra.dayoftheweek",
+    "pk": 2,
+    "fields": {
+        "name": "Tuesday"
+    }
+},
+{
+    "model": "metra.dayoftheweek",
+    "pk": 3,
+    "fields": {
+        "name": "Wednesday"
+    }
+},
+{
+    "model": "metra.dayoftheweek",
+    "pk": 4,
+    "fields": {
+        "name": "Thursday"
+    }
+},
+{
+    "model": "metra.dayoftheweek",
+    "pk": 5,
+    "fields": {
+        "name": "Friday"
+    }
+},
+{
+    "model": "metra.dayoftheweek",
+    "pk": 6,
+    "fields": {
+        "name": "Saturday"
+    }
+},
+{
+    "model": "metra.dayoftheweek",
+    "pk": 7,
+    "fields": {
+        "name": "Sunday"
+    }
+}
+]
