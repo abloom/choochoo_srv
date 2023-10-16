@@ -70,11 +70,13 @@
                                 <span class="direction">
                                     {{ direction_id|direction }}
                                 </span>
+                                <ul>
                                 {% for stop_time in stop_times %}
-                                <span class="arrival-time">
-                                    {{ stop_time.arrival_time }}
-                                </span>
+                                    <li class="arrival-time">
+                                        {{ stop_time.arrival_time }}
+                                    </li>
                                 {% endfor %}
+                                </ul>
                             </li>
                             {% endfor %}
                         </ul>

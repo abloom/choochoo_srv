@@ -4,7 +4,7 @@ from typing import Any
 from django.db.models.query import QuerySet
 from django.views.generic import ListView
 from metra import models
-from datetime import date
+from datetime import datetime
 
 class BidirectionalStop:
     def __init__(self) -> None:
@@ -22,8 +22,9 @@ class StopTimeView(ListView):
 
     def get_queryset(self) -> QuerySet[Any]:
         base_queryset = super().get_queryset().prefetch_related('stop', 'trip', 'trip__route').order_by('trip__route', 'stop', 'stop_sequence', 'arrival_time')
-        today = date.today()
+        today = datetime.today()
         day_of_week = models.DayOfTheWeek.objects.get(name=today.strftime("%A"))
+        print(today.time())
 
         queryset = None
         for route_to_display in models.RouteToDisplay.objects.prefetch_related("stops_to_display").all():
@@ -32,6 +33,7 @@ class StopTimeView(ListView):
                 trip__service__start_date__lte=today,
                 trip__service__end_date__gte=today,
                 trip__service__days_of_the_week=day_of_week,
+                arrival_time__gte=today.time(),
             )
 
             stop_ids = route_to_display.stops_to_display.values_list("stop_id", flat=True)

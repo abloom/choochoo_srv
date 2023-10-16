@@ -1,17 +1,25 @@
-from datetime import time
+from datetime import time, datetime
 from django.core.management.base import BaseCommand
 from metra.client import MetraClient
 from django.conf import settings
 from metra import models
+from zoneinfo import ZoneInfo
 
-def from_iso_to_time(iso_time: str) -> time:
+chicago_tz = ZoneInfo("America/Chicago")
+utc_tz = ZoneInfo("UTC")
+
+def _extract_time(time_str):
+    return datetime.strptime(time_str, '%H:%M:%S').replace(tzinfo=chicago_tz).astimezone(utc_tz).time()
+
+def from_central_time_string(central_time: str) -> time:
     try:
-        return time.fromisoformat(iso_time)
+        return _extract_time(central_time)
     except ValueError:
         # some trips that end up running past midnight have an arrival time larger than 23 hours
-        time_parts = iso_time.split(":")
+        time_parts = central_time.split(":")
         time_parts[0] = str(int(time_parts[0]) - 24).zfill(2)
-        return time.fromisoformat(":".join(time_parts))
+        adjusted_central_time = ":".join(time_parts)
+        return _extract_time(adjusted_central_time)
 
 class Command(BaseCommand):
     help = 'Displays current time'
@@ -33,12 +41,16 @@ class Command(BaseCommand):
         for calendar in self.client.calendars():
             service_id = calendar["service_id"]
             service = models.Service.objects.filter(service_id=service_id).first()
-            if not service:
+            if service:
+                service.start_date = calendar["start_date"]
+                service.end_date = calendar["end_date"]
+            else:
                 service = models.Service.objects.create(
                     service_id=service_id,
-                    start_date = calendar["start_date"],
-                    end_date = calendar["end_date"],
+                    start_date=calendar["start_date"],
+                    end_date=calendar["end_date"],
                 )
+
 
             if calendar["monday"]:
                 service.days_of_the_week.add(1)
@@ -75,6 +87,7 @@ class Command(BaseCommand):
             else:
                 service.days_of_the_week.remove(7)
 
+            service.save()
             count += 1
 
         self.stdout.write("Created or updated %d metra.Services" % count)
@@ -85,13 +98,19 @@ class Command(BaseCommand):
         for route_data in self.client.routes():
             route_id = route_data["route_id"]
             route = models.Route.objects.filter(route_id=route_id).first()
-            if not route:
+            if route:
+                route.short_name = route_data["route_short_name"]
+                route.long_name = route_data["route_long_name"]
+                route.route_color = route_data["route_color"]
+                route.text_color = route_data["route_text_color"]
+                route.save()
+            else:
                 route = models.Route.objects.create(
                     route_id=route_id,
                     short_name=route_data["route_short_name"],
                     long_name=route_data["route_long_name"],
                     route_color=route_data["route_color"],
-                    text_color=route_data["route_text_color"]
+                    text_color=route_data["route_text_color"],
                 )
 
             count += 1
@@ -104,12 +123,17 @@ class Command(BaseCommand):
         for trip_data in self.client.trips():
             trip_id = trip_data["trip_id"]
             trip = models.Trip.objects.filter(trip_id=trip_id).first()
-            if not trip:
+            if trip:
+                trip.direction = trip_data["direction_id"] + 1
+                trip.route = models.Route.objects.get(route_id=trip_data["route_id"])
+                trip.service = models.Service.objects.get(service_id=trip_data["service_id"])
+                trip.save()
+            else:
                 trip = models.Trip.objects.create(
                     trip_id=trip_id,
-                    direction=trip_data["direction_id"],
+                    direction=trip_data["direction_id"] + 1,
                     route=models.Route.objects.get(route_id=trip_data["route_id"]),
-                    service=models.Service.objects.get(service_id=trip_data["service_id"])
+                    service=models.Service.objects.get(service_id=trip_data["service_id"]),
                 )
 
             count += 1
@@ -122,10 +146,13 @@ class Command(BaseCommand):
         for stop_data in self.client.stops():
             stop_id = stop_data["stop_id"]
             stop = models.Stop.objects.filter(stop_id=stop_id).first()
-            if not stop:
+            if stop:
+                stop.name = stop_data["stop_name"]
+                stop.save()
+            else:
                 stop = models.Stop.objects.create(
-                   stop_id=stop_id,
-                   name=stop_data["stop_name"]
+                    stop_id=stop_id,
+                    name=stop_data["stop_name"],
                 )
 
             count += 1
@@ -139,12 +166,17 @@ class Command(BaseCommand):
             stop = models.Stop.objects.get(stop_id=stop_time_data["stop_id"])
             trip = models.Trip.objects.get(trip_id=stop_time_data["trip_id"])
             stop_time = models.StopTime.objects.filter(stop=stop, trip=trip).first()
-            if not stop_time:
+            if stop_time:
+                stop_time.arrival_time=from_central_time_string(stop_time_data["arrival_time"])
+                stop_time.departure_time=from_central_time_string(stop_time_data["departure_time"])
+                stop_time.stop_sequence=stop_time_data["stop_sequence"]
+                stop_time.save()
+            else:
                 stop_time = models.StopTime.objects.create(
                     stop=stop,
                     trip=trip,
-                    arrival_time=from_iso_to_time(stop_time_data["arrival_time"]),
-                    departure_time=from_iso_to_time(stop_time_data["departure_time"]),
+                    arrival_time=from_central_time_string(stop_time_data["arrival_time"]),
+                    departure_time=from_central_time_string(stop_time_data["departure_time"]),
                     stop_sequence=stop_time_data["stop_sequence"],
                 )
 
