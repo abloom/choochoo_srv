@@ -14,7 +14,7 @@ class Service(models.Model):
         return self.service_id
 
 class Route(models.Model):
-    route_id = models.CharField(max_length=12)
+    route_id = models.CharField(max_length=12, unique=True)
     short_name = models.CharField(max_length=32)
     long_name = models.CharField(max_length=128)
     route_color = models.CharField(max_length=6)
@@ -28,14 +28,14 @@ Direction = models.IntegerChoices("Direction", "OUTBOUND INBOUND")
 class Trip(models.Model):
     route = models.ForeignKey("metra.Route", on_delete=models.CASCADE)
     service = models.ForeignKey("metra.Service", on_delete=models.CASCADE)
-    trip_id = models.CharField(max_length=64)
+    trip_id = models.CharField(max_length=64, unique=True)
     direction = models.IntegerField(choices=Direction.choices)
 
     def __str__(self) -> str:
         return self.trip_id
 
 class Stop(models.Model):
-    stop_id = models.CharField(max_length=64)
+    stop_id = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=128)
 
     def __str__(self) -> str:

@@ -21,6 +21,11 @@ def from_central_time_string(central_time: str) -> time:
         adjusted_central_time = ":".join(time_parts)
         return _extract_time(adjusted_central_time)
 
+def batch(iterable, n=1000):
+    length = len(iterable)
+    for ndx in range(0, length, n):
+        yield iterable[ndx:min(ndx+n, length)]
+
 class Command(BaseCommand):
     help = 'Displays current time'
 
@@ -120,23 +125,35 @@ class Command(BaseCommand):
     def load_trips(self):
         count = 0
 
-        for trip_data in self.client.trips():
-            trip_id = trip_data["trip_id"]
-            trip = models.Trip.objects.filter(trip_id=trip_id).first()
-            if trip:
-                trip.direction = trip_data["direction_id"] + 1
-                trip.route = models.Route.objects.get(route_id=trip_data["route_id"])
-                trip.service = models.Service.objects.get(service_id=trip_data["service_id"])
-                trip.save()
-            else:
-                trip = models.Trip.objects.create(
-                    trip_id=trip_id,
-                    direction=trip_data["direction_id"] + 1,
-                    route=models.Route.objects.get(route_id=trip_data["route_id"]),
-                    service=models.Service.objects.get(service_id=trip_data["service_id"]),
+        routes = {}
+        for route in models.Route.objects.all():
+            routes[route.route_id] = route
+
+        services = {}
+        for service in models.Service.objects.all():
+            services[service.service_id] = service
+
+        for trip_batches in batch(self.client.trips()):
+            trips = []
+
+            for trip_data in trip_batches:
+                trips.append(
+                    models.Trip(
+                        trip_id = trip_data["trip_id"],
+                        direction=trip_data["direction_id"] + 1,
+                        route=routes[trip_data["route_id"]],
+                        service=services[trip_data["service_id"]],
+                    )
                 )
 
-            count += 1
+            results = models.Trip.objects.bulk_create(
+                trips,
+                update_conflicts=True,
+                unique_fields=['trip_id'],
+                update_fields=['direction', 'route', 'service'],
+            )
+
+            count += len(results)
 
         self.stdout.write("Created or updated %d metra.Trips" % count)
 
@@ -162,24 +179,36 @@ class Command(BaseCommand):
     def load_stop_times(self):
         count = 0
 
-        for stop_time_data in self.client.stop_times():
-            stop = models.Stop.objects.get(stop_id=stop_time_data["stop_id"])
-            trip = models.Trip.objects.get(trip_id=stop_time_data["trip_id"])
-            stop_time = models.StopTime.objects.filter(stop=stop, trip=trip).first()
-            if stop_time:
-                stop_time.arrival_time=from_central_time_string(stop_time_data["arrival_time"])
-                stop_time.departure_time=from_central_time_string(stop_time_data["departure_time"])
-                stop_time.stop_sequence=stop_time_data["stop_sequence"]
-                stop_time.save()
-            else:
-                stop_time = models.StopTime.objects.create(
-                    stop=stop,
-                    trip=trip,
-                    arrival_time=from_central_time_string(stop_time_data["arrival_time"]),
-                    departure_time=from_central_time_string(stop_time_data["departure_time"]),
-                    stop_sequence=stop_time_data["stop_sequence"],
+        stops = {}
+        for stop in models.Stop.objects.all():
+            stops[stop.stop_id] = stop
+
+        trips = {}
+        for trip in models.Trip.objects.all():
+            trips[trip.trip_id] = trip
+
+        for stop_time_batches in batch(self.client.stop_times()):
+            stop_times = []
+
+            for stop_time_data in stop_time_batches:
+                stop_times.append(
+                    models.StopTime(
+                        stop=stops[stop_time_data["stop_id"]],
+                        trip=trips[stop_time_data["trip_id"]],
+                        arrival_time=from_central_time_string(stop_time_data["arrival_time"]),
+                        departure_time=from_central_time_string(stop_time_data["departure_time"]),
+                        stop_sequence=stop_time_data["stop_sequence"],
+                    )
                 )
 
-            count += 1
+            results = models.StopTime.objects.bulk_create(
+                stop_times,
+                update_conflicts=True,
+                unique_fields=["stop", "trip"],
+                update_fields=["arrival_time", "departure_time", "stop_sequence"],
+
+            )
+
+            count += len(results)
 
         self.stdout.write("Created or updated %d metra.StopTime" % count)

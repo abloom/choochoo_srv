@@ -1,10 +1,13 @@
 from collections import defaultdict
 from pprint import pprint
 from typing import Any
+from zoneinfo import ZoneInfo
 from django.db.models.query import QuerySet
 from django.views.generic import ListView
 from metra import models
 from datetime import datetime
+
+chicago_tz = ZoneInfo("America/Chicago")
 
 class BidirectionalStop:
     def __init__(self) -> None:
@@ -22,9 +25,8 @@ class StopTimeView(ListView):
 
     def get_queryset(self) -> QuerySet[Any]:
         base_queryset = super().get_queryset().prefetch_related('stop', 'trip', 'trip__route').order_by('trip__route', 'stop', 'stop_sequence', 'arrival_time')
-        today = datetime.today()
+        today = datetime.today().astimezone(chicago_tz)
         day_of_week = models.DayOfTheWeek.objects.get(name=today.strftime("%A"))
-        print(today.time())
 
         queryset = None
         for route_to_display in models.RouteToDisplay.objects.prefetch_related("stops_to_display").all():
